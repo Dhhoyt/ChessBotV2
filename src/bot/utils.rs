@@ -66,3 +66,32 @@ impl Iterator for BitBoardIter {
         Some(res)
     }
 }
+
+fn string_square(square: usize) -> String {
+    let file = square % 8;
+    let rank = square / 8;
+    let mut res = String::new();
+    match file {
+        0 => res.push('a'),
+        1 => res.push('b'),
+        2 => res.push('c'),
+        3 => res.push('d'),
+        4 => res.push('e'),
+        5 => res.push('f'),
+        6 => res.push('g'),
+        7 => res.push('h'),
+        _ => panic!("uhhh"),
+    }
+    match rank {
+        0 => res.push('1'),
+        1 => res.push('2'),
+        2 => res.push('3'),
+        3 => res.push('4'),
+        4 => res.push('5'),
+        5 => res.push('6'),
+        6 => res.push('7'),
+        7 => res.push('8'),
+        _ => panic!("uhhh"),
+    }
+    res
+}

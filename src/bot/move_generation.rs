@@ -119,7 +119,7 @@ impl Board {
                 let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                new_board.castle &= ! piece_mask;
+                new_board.castle &= !piece_mask;
                 res.push((new_board, score + 2));
             }
         }
@@ -136,7 +136,7 @@ impl Board {
                 let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                new_board.castle &= ! piece_mask;
+                new_board.castle &= !piece_mask;
                 res.push((new_board, score + 2));
             }
         }
@@ -254,7 +254,7 @@ impl Board {
                     let mut queen_board = new_board.clone();
                     queen_board.black_queens |= new_square;
                     queen_board.redo_occupied();
-                    queen_board.white_to_play = true    ;
+                    queen_board.white_to_play = true;
                     res.push((queen_board, 1000));
                     let mut rook_board = new_board.clone();
                     rook_board.black_rooks |= new_square;
@@ -271,14 +271,12 @@ impl Board {
                     bishop_board.redo_occupied();
                     bishop_board.white_to_play = true;
                     res.push((bishop_board, 800));
-                }
-                else {
+                } else {
                     new_board.white_pawns |= new_square;
                     new_board.redo_occupied();
                     new_board.white_to_play = true;
                     res.push((new_board, 5));
                 }
-                
             }
         }
 
@@ -382,7 +380,9 @@ impl Board {
         }
 
         //Castleing
-        if (self.castle & 0x9000000000000000 == 0x9000000000000000) && under_attack & 0x7000000000000000 == 0 {
+        if (self.castle & 0x9000000000000000 == 0x9000000000000000)
+            && under_attack & 0x7000000000000000 == 0
+        {
             let mut new_board = self.clone();
             new_board.black_rooks ^= 0xa000000000000000;
             new_board.black_kings ^= 0x5000000000000000;
@@ -390,7 +390,9 @@ impl Board {
             new_board.redo_occupied();
             res.push((new_board, 0));
         }
-        if (self.castle & 0x1100000000000000 == 0x1100000000000000) && under_attack & 0x1c00000000000000 == 0 {
+        if (self.castle & 0x1100000000000000 == 0x1100000000000000)
+            && under_attack & 0x1c00000000000000 == 0
+        {
             let mut new_board = self.clone();
             new_board.black_rooks ^= 0x900000000000000;
             new_board.black_kings ^= 0x1400000000000000;
@@ -522,7 +524,7 @@ impl Board {
                 let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                new_board.castle &= ! piece_mask;
+                new_board.castle &= !piece_mask;
                 res.push((new_board, score + 2));
             }
         }
@@ -539,7 +541,7 @@ impl Board {
                 let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                new_board.castle &= ! piece_mask;
+                new_board.castle &= !piece_mask;
                 res.push((new_board, score + 2));
             }
         }
@@ -642,7 +644,9 @@ impl Board {
         }
 
         //Unpinned Pawn Pushes
-        for i in BitBoardIter(self.white_pawns & !pinmask & south_one(!self.occupied) & !0x00FF000000000000) {
+        for i in BitBoardIter(
+            self.white_pawns & !pinmask & south_one(!self.occupied) & !0x00FF000000000000,
+        ) {
             let moves = PAWN_MOVES[0][i] & checkmask & !self.occupied;
             for m in BitBoardIter(moves) {
                 let piece_mask = (1 as u64) << i;
@@ -674,13 +678,12 @@ impl Board {
                     bishop_board.redo_occupied();
                     bishop_board.white_to_play = false;
                     res.push((bishop_board, 800));
-                }
-                else {
+                } else {
                     new_board.white_pawns |= new_square;
                     new_board.redo_occupied();
                     new_board.white_to_play = false;
                     res.push((new_board, 5));
-                } 
+                }
             }
         }
 

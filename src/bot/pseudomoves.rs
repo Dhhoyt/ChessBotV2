@@ -300,8 +300,6 @@ pub fn bishop_xray(square: usize, empty: BitBoard) -> BitBoard {
     //East
     attacks |= RAYS[1][square];
     if RAYS[1][square] & blockers != 0 {
-        
-        
         let blocker_index = BitBoard::trailing_zeros(RAYS[1][square] & blockers) as usize;
 
         blockers &= !((1 as BitBoard) << blocker_index);

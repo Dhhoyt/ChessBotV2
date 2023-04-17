@@ -1,16 +1,19 @@
-use std::{pin, f32::INFINITY, collections::HashMap, hash::{Hash, Hasher, BuildHasherDefault}, sync::{Mutex, Arc}, mem};
-
-use self::{
-    move_generation::*,
-    pseudomoves::*,
-    utils::{print_bit_board, BitBoardIter, north_one},
+use std::{
+    collections::HashMap,
+    f32::INFINITY,
+    hash::{BuildHasherDefault, Hash, Hasher},
+    mem, pin,
+    sync::{Arc, Mutex},
 };
 
-mod zobrist;
-mod move_generation;
-pub mod pseudomoves;
-mod utils;
+use self::{move_generation::*, pseudomoves::*, utils::*};
+
 mod magic_bitboards;
+mod move_generation;
+pub mod opening;
+mod pseudomoves;
+mod utils;
+mod zobrist;
 
 const CHECKMATE_VALUE: f32 = 1000000.0;
 const CHECKMATE_THRESHOLD: f32 = 100000.0;
@@ -130,12 +133,22 @@ impl Board {
                 res.push_str("/");
             }
         }
-        res.push_str(&format!(" {} ", if self.white_to_play {'w'} else {'b'}));
-        if 0x80 & self.castle != 0 { res.push('K') };
-        if 0x1 & self.castle != 0 { res.push('Q') };
-        if 0x8000000000000000 & self.castle != 0 { res.push('k') };
-        if 0x100000000000000 & self.castle != 0 { res.push('q') };
-        if 0x8100000000000081 & self.castle == 0 {res.push('-')};
+        res.push_str(&format!(" {} ", if self.white_to_play { 'w' } else { 'b' }));
+        if 0x80 & self.castle != 0 {
+            res.push('K')
+        };
+        if 0x1 & self.castle != 0 {
+            res.push('Q')
+        };
+        if 0x8000000000000000 & self.castle != 0 {
+            res.push('k')
+        };
+        if 0x100000000000000 & self.castle != 0 {
+            res.push('q')
+        };
+        if 0x8100000000000081 & self.castle == 0 {
+            res.push('-')
+        };
         res
     }
 
@@ -182,14 +195,13 @@ impl Board {
                 return Err(FENError::InvalidRankLength);
             }
         }
-        let turn = split.get(1).unwrap();
-        if *turn == "w" {
-            res.white_to_play = true;
-        } else if *turn == "b" {
-            res.white_to_play = false;
-        } else {
-            return Err(FENError::InvalidTurn(turn.chars().next().unwrap()));
-        }
+
+        match *split.get(1).unwrap() {
+            "w" => res.white_to_play = true,
+            "b" => res.white_to_play = false,
+            _ => return Err(FENError::InvalidTurnToken),
+        };
+
         let castle = split.get(2).unwrap();
         if castle.contains('K') {
             res.castle |= 0x90;
@@ -203,55 +215,116 @@ impl Board {
         if castle.contains('q') {
             res.castle |= 0x1100000000000000;
         }
-        match *split.get(1).unwrap() {
-            "w" => res.white_to_play = true,
-            "b" => res.white_to_play = false,
-            _ => return Err(FENError::InvalidTurnToken),
-        };
+
+        let en_passant = *split.get(3).unwrap();
+
+        match en_passant {
+            "-" => (),
+            "a3" => res.en_passant = 0x10000,
+            "b3" => res.en_passant = 0x20000,
+            "c3" => res.en_passant = 0x40000,
+            "d3" => res.en_passant = 0x80000,
+            "e3" => res.en_passant = 0x100000,
+            "f3" => res.en_passant = 0x200000,
+            "g3" => res.en_passant = 0x400000,
+            "h3" => res.en_passant = 0x800000,
+            "a6" => res.en_passant = 0x10000000000,
+            "b6" => res.en_passant = 0x20000000000,
+            "c6" => res.en_passant = 0x40000000000,
+            "d6" => res.en_passant = 0x80000000000,
+            "e6" => res.en_passant = 0x100000000000,
+            "f6" => res.en_passant = 0x200000000000,
+            "g6" => res.en_passant = 0x400000000000,
+            "h6" => res.en_passant = 0x800000000000,
+            _ => return Err(FENError::InvalidEnPassant),
+        }
+
         res.redo_occupied();
         Ok(res)
     }
 
     pub fn hueristic(&self) -> f32 {
         let mut total: f32 = 0.;
-        total += (self.white_queens.count_ones() as f32 - self.black_queens.count_ones() as f32)
-            * 9.;
-        total += (self.white_rooks.count_ones() as f32 - self.black_rooks.count_ones() as f32)
-            * 5.;
-        total += (self.white_bishops.count_ones() as f32 - self.black_bishops.count_ones() as f32)
-            * 3.;
-        total += (self.white_knights.count_ones() as f32 - self.black_knights.count_ones() as f32)
-            * 3.;
-        total += (self.white_pawns.count_ones() as f32 - self.black_pawns.count_ones() as f32)
-            * 1.;
-        
+        total +=
+            (self.white_queens.count_ones() as f32 - self.black_queens.count_ones() as f32) * 9.;
+        total += (self.white_rooks.count_ones() as f32 - self.black_rooks.count_ones() as f32) * 5.;
+        total +=
+            (self.white_bishops.count_ones() as f32 - self.black_bishops.count_ones() as f32) * 3.;
+        total +=
+            (self.white_knights.count_ones() as f32 - self.black_knights.count_ones() as f32) * 3.;
+        total += (self.white_pawns.count_ones() as f32 - self.black_pawns.count_ones() as f32) * 1.;
+
         total += self.under_attack_by_white().count_ones() as f32 * 0.25;
         total -= self.under_attack_by_black().count_ones() as f32 * 0.25;
         total
     }
 
-    pub fn find_move_interatively(self, depth: usize, trans_table: &mut HashMap<Board, (usize, f32, Board)>) -> (Board, f32) {
-        
+    pub fn find_move_interatively(
+        self,
+        depth: usize,
+        trans_table: &mut HashMap<Board, (usize, f32, Board)>,
+    ) -> (Board, f32) {
         let mut best = (Board::default(), 0.0);
 
-        if self.white_to_play {
-            best = Board::alpha_beta(self, depth, -CHECKMATE_VALUE - 2., CHECKMATE_VALUE + 2., true, trans_table);
-        } else {
-            best = Board::alpha_beta(self, depth, -CHECKMATE_VALUE - 2., CHECKMATE_VALUE + 2., false, trans_table);
+        for i in 1..(depth + 1) {
+            if self.white_to_play {
+                best = Board::alpha_beta(
+                    self,
+                    i,
+                    -CHECKMATE_VALUE - 2.,
+                    CHECKMATE_VALUE + 2.,
+                    true,
+                    trans_table,
+                );
+            } else {
+                best = Board::alpha_beta(
+                    self,
+                    i,
+                    -CHECKMATE_VALUE - 2.,
+                    CHECKMATE_VALUE + 2.,
+                    false,
+                    trans_table,
+                );
+            }
         }
 
         best
     }
-    
-    pub fn find_move(self, depth: usize, trans_table: &mut HashMap<Board, (usize, f32, Board)>) -> (Board, f32) {
+
+    pub fn find_move(
+        self,
+        depth: usize,
+        trans_table: &mut HashMap<Board, (usize, f32, Board)>,
+    ) -> (Board, f32) {
         if self.white_to_play {
-            Board::alpha_beta(self, depth, -CHECKMATE_VALUE - 2., CHECKMATE_VALUE + 2., true, trans_table)
+            Board::alpha_beta(
+                self,
+                depth,
+                -CHECKMATE_VALUE - 2.,
+                CHECKMATE_VALUE + 2.,
+                true,
+                trans_table,
+            )
         } else {
-            Board::alpha_beta(self, depth, -CHECKMATE_VALUE - 2., CHECKMATE_VALUE + 2., false, trans_table)
+            Board::alpha_beta(
+                self,
+                depth,
+                -CHECKMATE_VALUE - 2.,
+                CHECKMATE_VALUE + 2.,
+                false,
+                trans_table,
+            )
         }
     }
-    
-    fn alpha_beta(board: Board, depth: usize, mut alpha: f32, mut beta: f32, white: bool, trans_table: &mut HashMap<Board, (usize, f32, Board)>) -> (Board, f32) {
+
+    fn alpha_beta(
+        board: Board,
+        depth: usize,
+        mut alpha: f32,
+        mut beta: f32,
+        white: bool,
+        trans_table: &mut HashMap<Board, (usize, f32, Board)>,
+    ) -> (Board, f32) {
         //println!("{}", board.to_fen());
         if depth == 0 {
             return (board, board.hueristic());
@@ -265,14 +338,22 @@ impl Board {
                 }
             }
         }
-        let mut moves = if white { board.white_moves() } else { board.black_moves() };
+        let mut moves = if white {
+            board.white_moves()
+        } else {
+            board.black_moves()
+        };
 
         if white {
             let mut value = -CHECKMATE_VALUE - 2.0;
             if moves.len() == 0 {
-                return if board.white_kings & board.under_attack_by_black() != 0 {(board,-CHECKMATE_VALUE)} else {(board,0.0)};
+                return if board.white_kings & board.under_attack_by_black() != 0 {
+                    (board, -CHECKMATE_VALUE)
+                } else {
+                    (board, 0.0)
+                };
             }
-            let mut best_move: Option<Board>= None;
+            let mut best_move: Option<Board> = None;
             for i in OrderedMoves(moves) {
                 let eval = Board::alpha_beta(i, depth - 1, alpha, beta, false, trans_table);
                 if eval.1 > value {
@@ -280,33 +361,39 @@ impl Board {
                     best_move = Some(i);
                 }
                 alpha = f32::max(alpha, value);
-                
+
                 if value >= beta {
                     break;
                 }
             }
-            if value > CHECKMATE_THRESHOLD {    
+            if value > CHECKMATE_THRESHOLD {
                 value -= 1.;
             }
             if value < -CHECKMATE_THRESHOLD {
                 value += 1.;
             }
-            
+
             match trans_table.get_mut(&board) {
-                None => {trans_table.insert(board, (depth, value, best_move.unwrap()));},
+                None => {
+                    trans_table.insert(board, (depth, value, best_move.unwrap()));
+                }
                 Some(result) => {
                     if result.0 < depth {
                         *result = (depth, value, best_move.unwrap());
                     }
-                },
+                }
             }
             return (best_move.expect("No best move found?!?!?!?!?"), value);
         } else {
             let mut value = CHECKMATE_VALUE + 2.0;
             if moves.len() == 0 {
-                return if board.black_kings & board.under_attack_by_white() != 0 {(board,CHECKMATE_VALUE)} else {(board,0.0)};
+                return if board.black_kings & board.under_attack_by_white() != 0 {
+                    (board, CHECKMATE_VALUE)
+                } else {
+                    (board, 0.0)
+                };
             }
-            let mut best_move: Option<Board>= None;
+            let mut best_move: Option<Board> = None;
             for i in OrderedMoves(moves) {
                 let eval = Board::alpha_beta(i, depth - 1, alpha, beta, true, trans_table);
                 if eval.1 < value {
@@ -318,7 +405,6 @@ impl Board {
                 if value <= alpha {
                     break;
                 }
-                
             }
             if value < -CHECKMATE_THRESHOLD {
                 value += 1.;
@@ -327,15 +413,35 @@ impl Board {
                 value -= 1.;
             }
             match trans_table.get_mut(&board) {
-                None => {trans_table.insert(board, (depth, value, best_move.unwrap()));},
+                None => {
+                    trans_table.insert(board, (depth, value, best_move.unwrap()));
+                }
                 Some(result) => {
                     if result.0 < depth {
                         *result = (depth, value, best_move.unwrap());
                     }
-                },
+                }
             }
             return (best_move.expect("No best move found?!?!?!?!?"), value);
         }
+    }
+
+    fn get_en_passant(&self) -> BitBoard {
+        let square = self.en_passant.trailing_zeros();
+        if self.en_passant & 0xff0000 != 0 {
+            if (self.black_pawns & north_east_one(self.en_passant) != 0)
+                | (self.black_pawns & north_west_one(self.en_passant) != 0)
+            {
+                return self.en_passant;
+            }
+        } else if self.en_passant & 0xff0000000000 != 0 {
+            if (self.white_pawns & south_east_one(self.en_passant) != 0)
+                | (self.white_pawns & south_west_one(self.en_passant) != 0)
+            {
+                return self.en_passant;
+            }
+        }
+        0
     }
 }
 
@@ -375,7 +481,8 @@ pub enum FENError {
     InvalidPiece(char),
     InvalidTurn(char),
     InvalidRankLength,
-    InvalidTurnToken
+    InvalidTurnToken,
+    InvalidEnPassant,
 }
 
 impl std::hash::Hash for Board {
@@ -399,9 +506,8 @@ impl Iterator for OrderedMoves {
         let mut best_index = 0;
         let mut best_score = 0;
         for i in self.0.iter_mut().enumerate() {
-            
-            if i.1.1 > best_score {
-                best_score = i.1.1;
+            if i.1 .1 > best_score {
+                best_score = i.1 .1;
                 best_index = i.0;
             }
         }
