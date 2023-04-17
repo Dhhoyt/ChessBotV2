@@ -249,6 +249,7 @@ impl Board {
                 if i - m == 16 {
                     new_board.en_passant |= north_one(new_square);
                 }
+                new_board.black_pawns ^= piece_mask;
                 if m < 8 {
                     let mut queen_board = new_board.clone();
                     queen_board.black_queens |= new_square;

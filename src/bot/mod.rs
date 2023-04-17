@@ -6,6 +6,7 @@ use self::{
     utils::{print_bit_board, BitBoardIter, north_one},
 };
 
+mod zobrist;
 mod move_generation;
 pub mod pseudomoves;
 mod utils;
@@ -223,7 +224,7 @@ impl Board {
         total
     }
 
-    pub fn find_move_interatively(self, depth: usize, trans_table: &mut HashMap<Board, (usize,f32)>) -> (Board, f32) {
+    pub fn find_move_interatively(self, depth: usize, trans_table: &mut HashMap<Board, (usize, f32, Board)>) -> (Board, f32) {
         
         let mut best = (Board::default(), 0.0);
 
@@ -236,7 +237,7 @@ impl Board {
         best
     }
     
-    pub fn find_move(self, depth: usize, trans_table: &mut HashMap<Board, (usize,f32)>) -> (Board, f32) {
+    pub fn find_move(self, depth: usize, trans_table: &mut HashMap<Board, (usize, f32, Board)>) -> (Board, f32) {
         if self.white_to_play {
             Board::alpha_beta(self, depth, -CHECKMATE_VALUE - 2., CHECKMATE_VALUE + 2., true, trans_table)
         } else {
@@ -244,7 +245,7 @@ impl Board {
         }
     }
     
-    fn alpha_beta(board: Board, depth: usize, mut alpha: f32, mut beta: f32, white: bool, trans_table: &mut HashMap<Board, (usize, f32)>) -> (Board, f32) {
+    fn alpha_beta(board: Board, depth: usize, mut alpha: f32, mut beta: f32, white: bool, trans_table: &mut HashMap<Board, (usize, f32, Board)>) -> (Board, f32) {
         //println!("{}", board.to_fen());
         if depth == 0 {
             return (board, board.hueristic());
@@ -254,7 +255,7 @@ impl Board {
             None => (),
             Some(result) => {
                 if result.0 >= depth {
-                    return (board, result.1);
+                    return (result.2, result.1);
                 }
             }
         }
@@ -270,10 +271,6 @@ impl Board {
                 let eval = Board::alpha_beta(i, depth - 1, alpha, beta, false, trans_table);
                 if eval.1 > value {
                     value = eval.1;
-                    if depth == 7 {
-                        println!("Switched: {} {}", i.to_fen(), eval.1);
-                        
-                    }
                     best_move = Some(i);
                 }
                 alpha = f32::max(alpha, value);
@@ -290,10 +287,10 @@ impl Board {
             }
             
             match trans_table.get_mut(&board) {
-                None => {trans_table.insert(board, (depth, value));},
+                None => {trans_table.insert(board, (depth, value, best_move.unwrap()));},
                 Some(result) => {
                     if result.0 < depth {
-                        *result = (depth, value);
+                        *result = (depth, value, best_move.unwrap());
                     }
                 },
             }
@@ -324,10 +321,10 @@ impl Board {
                 value -= 1.;
             }
             match trans_table.get_mut(&board) {
-                None => {trans_table.insert(board, (depth, value));},
+                None => {trans_table.insert(board, (depth, value, best_move.unwrap()));},
                 Some(result) => {
                     if result.0 < depth {
-                        *result = (depth, value);
+                        *result = (depth, value, best_move.unwrap());
                     }
                 },
             }
@@ -379,7 +376,7 @@ impl std::hash::Hash for Board {
     where
         H: std::hash::Hasher,
     {
-        state.write_u64(self.occupied);
+        state.write_u64(self.occupied ^ self.white_to_play as u64);
         state.finish();
     }
 }

@@ -11,7 +11,6 @@ fn main() {
     let mut trans_table = HashMap::new();
     let mut board = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
 
-    println!("{}", board.hueristic());
     (board, score) = board.find_move(7, &mut trans_table);
     println!("{} \n {}", board.to_fen(), score);
     loop {
