@@ -166,6 +166,7 @@ impl Board {
                 new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
+                new_board.castle &= !piece_mask;
                 res.push(new_board);
             }
         }
@@ -362,7 +363,8 @@ impl Board {
 
         //King Moves
         let king_square = self.black_kings.trailing_zeros() as usize;
-        let moves = KING_MOVES[king_square] & !self.under_attack_by_white() & self.white_or_empty();
+        let under_attack = !self.under_attack_by_white();
+        let moves = KING_MOVES[king_square] & under_attack & self.white_or_empty();
         for m in BitBoardIter(moves) {
             let new_square = (1 as u64) << m;
             let mut new_board = self.clone();
@@ -371,8 +373,10 @@ impl Board {
             new_board.capture_white(new_square);
             new_board.redo_occupied();
             new_board.white_to_play = true;
+            new_board.castle &= !self.black_kings;
             res.push(new_board);
         }
+        
 
         res
     }
@@ -384,6 +388,7 @@ impl Board {
         self.black_bishops &= !mask;
         self.black_knights &= !mask;
         self.black_pawns &= !mask;
+        self.castle &= !mask;
     }
 }
 
@@ -478,6 +483,7 @@ impl Board {
                 new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
+                new_board.castle &= !piece_mask;
                 res.push(new_board);
             }
         }
@@ -730,6 +736,7 @@ impl Board {
             new_board.capture_black(new_square);
             new_board.redo_occupied();
             new_board.white_to_play = false;
+            new_board.castle &= !self.white_kings;
             res.push(new_board);
         }
 
@@ -767,6 +774,7 @@ impl Board {
         self.white_bishops &= !mask;
         self.white_knights &= !mask;
         self.white_pawns &= !mask;
+        self.castle &= !mask;
     }
 }
 

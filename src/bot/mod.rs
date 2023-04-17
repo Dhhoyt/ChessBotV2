@@ -9,6 +9,7 @@ use self::{
 mod move_generation;
 pub mod pseudomoves;
 mod utils;
+mod magic_bitboards;
 
 type BitBoard = u64;
 
@@ -184,6 +185,11 @@ impl Board {
         if castle.contains('q') {
             res.castle |= 0x1100000000000000;
         }
+        match *split.get(1).unwrap() {
+            "w" => res.white_to_play = true,
+            "b" => res.white_to_play = false,
+            _ => return Err(FENError::InvalidTurnToken),
+        };
         res.redo_occupied();
         Ok(res)
     }
@@ -333,6 +339,7 @@ pub enum FENError {
     IncorrrectNumberOfRanks,
     InvalidPiece(char),
     InvalidRankLength,
+    InvalidTurnToken
 }
 
 impl std::hash::Hash for Board {
