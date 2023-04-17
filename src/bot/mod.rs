@@ -10,6 +10,9 @@ mod move_generation;
 pub mod pseudomoves;
 mod utils;
 
+const CHECKMATE_VALUE: f32 = 1000000.0;
+const CHECKMATE_THRESHOLD: f32 = 100000.0;
+
 type BitBoard = u64;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -125,6 +128,12 @@ impl Board {
                 res.push_str("/");
             }
         }
+        res.push_str(&format!(" {} ", if self.white_to_play {'w'} else {'b'}));
+        if 0x80 & self.castle != 0 { res.push('K') };
+        if 0x1 & self.castle != 0 { res.push('Q') };
+        if 0x8000000000000000 & self.castle != 0 { res.push('k') };
+        if 0x100000000000000 & self.castle != 0 { res.push('q') };
+        if 0x8100000000000081 & self.castle == 0 {res.push('-')};
         res
     }
 
@@ -171,6 +180,14 @@ impl Board {
                 return Err(FENError::InvalidRankLength);
             }
         }
+        let turn = split.get(1).unwrap();
+        if *turn == "w" {
+            res.white_to_play = true;
+        } else if *turn == "b" {
+            res.white_to_play = false;
+        } else {
+            return Err(FENError::InvalidTurn(turn.chars().next().unwrap()));
+        }
         let castle = split.get(2).unwrap();
         if castle.contains('K') {
             res.castle |= 0x90;
@@ -188,7 +205,7 @@ impl Board {
         Ok(res)
     }
 
-    fn hueristic(&self) -> f32 {
+    pub fn hueristic(&self) -> f32 {
         let mut total: f32 = 0.;
         total += (self.white_queens.count_ones() as f32 - self.black_queens.count_ones() as f32)
             * 9.;
@@ -206,64 +223,72 @@ impl Board {
         total
     }
 
-    pub fn find_move_interatively(self, depth: usize, trans_table: &mut HashMap<Board, (usize,f32)>) -> (Board, f32) { 
-        for i in 0..depth - 1 {
-            self.find_move(i, trans_table);
-        }
-        self.find_move(depth, trans_table)
-    }
-    pub fn find_move(self, depth: usize, trans_table: &mut HashMap<Board, (usize,f32)>) -> (Board, f32) {
-        let mut best_move = Board::default();
-        let mut best_score: f32;
+    pub fn find_move_interatively(self, depth: usize, trans_table: &mut HashMap<Board, (usize,f32)>) -> (Board, f32) {
         
+        let mut best = (Board::default(), 0.0);
+
         if self.white_to_play {
-            
-            best_score = -INFINITY;
-            for i in self.white_moves() {
-                let score = Board::alpha_beta(i, depth, -INFINITY, INFINITY, false, trans_table);
-                if score > best_score {
-                    best_score = score;
-                    best_move = i;
-                }
-            }
+            best = Board::alpha_beta(self, depth, -CHECKMATE_VALUE - 2., CHECKMATE_VALUE + 2., true, trans_table);
         } else {
-            best_score = INFINITY;
-            for i in self.black_moves() {
-                let score = Board::alpha_beta(i, depth, -INFINITY, INFINITY, true, trans_table);
-                if score < best_score {
-                    best_score = score;
-                    best_move = i;
-                }
-            }
+            best = Board::alpha_beta(self, depth, -CHECKMATE_VALUE - 2., CHECKMATE_VALUE + 2., false, trans_table);
         }
-        (best_move, best_score)
+
+        best
     }
     
-    fn alpha_beta(board: Board, depth: usize, mut alpha: f32, mut beta: f32, white: bool, trans_table: &mut HashMap<Board, (usize, f32)>) -> f32 {
+    pub fn find_move(self, depth: usize, trans_table: &mut HashMap<Board, (usize,f32)>) -> (Board, f32) {
+        if self.white_to_play {
+            Board::alpha_beta(self, depth, -CHECKMATE_VALUE - 2., CHECKMATE_VALUE + 2., true, trans_table)
+        } else {
+            Board::alpha_beta(self, depth, -CHECKMATE_VALUE - 2., CHECKMATE_VALUE + 2., false, trans_table)
+        }
+    }
+    
+    fn alpha_beta(board: Board, depth: usize, mut alpha: f32, mut beta: f32, white: bool, trans_table: &mut HashMap<Board, (usize, f32)>) -> (Board, f32) {
+        //println!("{}", board.to_fen());
         if depth == 0 {
-            return board.hueristic();
+            return (board, board.hueristic());
         }
         let lookup = trans_table.get(&board);
         match lookup {
             None => (),
             Some(result) => {
                 if result.0 >= depth {
-                    return result.1;
+                    return (board, result.1);
                 }
             }
         }
         let mut moves = if white { board.white_moves() } else { board.black_moves() };
 
         if white {
-            let mut value = -INFINITY;
-            for i in moves {
+            let mut value = -CHECKMATE_VALUE - 2.0;
+            if moves.len() == 0 {
+                return if board.white_kings & board.under_attack_by_black() != 0 {(board,-CHECKMATE_VALUE)} else {(board,0.0)};
+            }
+            let mut best_move: Option<Board>= None;
+            for i in OrderedMoves(moves) {
                 let eval = Board::alpha_beta(i, depth - 1, alpha, beta, false, trans_table);
-                value = f32::max(value, eval);
+                if eval.1 > value {
+                    value = eval.1;
+                    if depth == 7 {
+                        println!("Switched: {} {}", i.to_fen(), eval.1);
+                        
+                    }
+                    best_move = Some(i);
+                }
                 alpha = f32::max(alpha, value);
+                
                 if value >= beta {
                     break;
                 }
             }
+            if value > CHECKMATE_THRESHOLD {    
+                value -= 1.;
+            }
+            if value < -CHECKMATE_THRESHOLD {
+                value += 1.;
+            }
+            
             match trans_table.get_mut(&board) {
                 None => {trans_table.insert(board, (depth, value));},
                 Some(result) => {
@@ -272,19 +297,32 @@ impl Board {
                     }
                 },
             }
-            return value;
+            return (best_move.expect("No best move found?!?!?!?!?"), value);
         } else {
-            let mut value = INFINITY;
-            for i in moves {
+            let mut value = CHECKMATE_VALUE + 2.0;
+            if moves.len() == 0 {
+                return if board.black_kings & board.under_attack_by_white() != 0 {(board,CHECKMATE_VALUE)} else {(board,0.0)};
+            }
+            let mut best_move: Option<Board>= None;
+            for i in OrderedMoves(moves) {
                 let eval = Board::alpha_beta(i, depth - 1, alpha, beta, true, trans_table);
-                value = f32::min(value, eval);
+                if eval.1 < value {
+                    value = eval.1;
+                    best_move = Some(i);
+                }
+
                 beta = f32::min(beta, value);
-                
                 if value <= alpha {
                     break;
                 }
                 
             }
+            if value < -CHECKMATE_THRESHOLD {
+                value += 1.;
+            }
+            if value > CHECKMATE_THRESHOLD {
+                value -= 1.;
+            }
             match trans_table.get_mut(&board) {
                 None => {trans_table.insert(board, (depth, value));},
                 Some(result) => {
@@ -293,7 +331,7 @@ impl Board {
                     }
                 },
             }
-            return value;
+            return (best_move.expect("No best move found?!?!?!?!?"), value);
         }
     }
 }
@@ -332,6 +370,7 @@ pub enum FENError {
     IncorrrectNumberOfTokens,
     IncorrrectNumberOfRanks,
     InvalidPiece(char),
+    InvalidTurn(char),
     InvalidRankLength,
 }
 
@@ -342,5 +381,31 @@ impl std::hash::Hash for Board {
     {
         state.write_u64(self.occupied);
         state.finish();
+    }
+}
+
+struct OrderedMoves(Vec<(Board, i32)>);
+
+impl Iterator for OrderedMoves {
+    type Item = Board;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0.len() == 0 {
+            return None;
+        }
+        let mut best_index = 0;
+        let mut best_score = 0;
+        for i in self.0.iter_mut().enumerate() {
+            
+            if i.1.1 > best_score {
+                best_score = i.1.1;
+                best_index = i.0;
+            }
+        }
+        let best = self.0.get_mut(best_index).unwrap();
+        if best.1 == -1 {
+            return None;
+        }
+        best.1 = -1;
+        Some(best.0)
     }
 }

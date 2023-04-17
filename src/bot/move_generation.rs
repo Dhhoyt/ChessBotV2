@@ -101,8 +101,8 @@ impl Board {
     }
 
     #[inline]
-    pub fn black_moves(&self) -> Vec<Board> {
-        let mut res = Vec::with_capacity(40);
+    pub fn black_moves(&self) -> Vec<(Board, i32)> {
+        let mut res: Vec<(Board, i32)> = Vec::with_capacity(40);
         let checkmask = self.black_checkmask();
         let pinmask_d = self.black_pinmask_d();
         let pinmask_hv = self.black_pinmask_hv();
@@ -116,9 +116,11 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_rooks ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
-                res.push(new_board);
+                new_board.white_to_play = true;
+                new_board.castle &= ! piece_mask;
+                res.push((new_board, score + 2));
             }
         }
         //Pinned rooks
@@ -131,10 +133,11 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_rooks ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                new_board.castle &= ! piece_mask;
+                res.push((new_board, score + 2));
             }
         }
 
@@ -147,10 +150,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_bishops ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 3));
             }
         }
         //Pinned Bishops
@@ -163,10 +166,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_bishops ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 3));
             }
         }
 
@@ -181,10 +184,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_queens ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 1));
             }
         }
         //Pinned Queens
@@ -198,10 +201,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_queens ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 1));
             }
             //hv moves
             let moves =
@@ -212,10 +215,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_queens ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 1));
             }
         }
 
@@ -228,10 +231,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_knights ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 4));
             }
         }
 
@@ -246,10 +249,35 @@ impl Board {
                 if i - m == 16 {
                     new_board.en_passant |= north_one(new_square);
                 }
-                new_board.black_pawns ^= piece_mask | new_square;
-                new_board.redo_occupied();
-                new_board.white_to_play = true;
-                res.push(new_board);
+                if m < 8 {
+                    let mut queen_board = new_board.clone();
+                    queen_board.black_queens |= new_square;
+                    queen_board.redo_occupied();
+                    queen_board.white_to_play = true    ;
+                    res.push((queen_board, 1000));
+                    let mut rook_board = new_board.clone();
+                    rook_board.black_rooks |= new_square;
+                    rook_board.redo_occupied();
+                    rook_board.white_to_play = true;
+                    res.push((rook_board, 900));
+                    let mut knight_board = new_board.clone();
+                    knight_board.black_knights |= new_square;
+                    knight_board.redo_occupied();
+                    knight_board.white_to_play = true;
+                    res.push((knight_board, 700));
+                    let mut bishop_board = new_board.clone();
+                    bishop_board.black_bishops |= new_square;
+                    bishop_board.redo_occupied();
+                    bishop_board.white_to_play = true;
+                    res.push((bishop_board, 800));
+                }
+                else {
+                    new_board.white_pawns |= new_square;
+                    new_board.redo_occupied();
+                    new_board.white_to_play = true;
+                    res.push((new_board, 5));
+                }
+                
             }
         }
 
@@ -265,34 +293,10 @@ impl Board {
                     new_board.en_passant |= north_one(new_square);
                 }
                 new_board.black_pawns ^= piece_mask;
-                if m > 8 {
-                    let mut queen_board = new_board.clone();
-                    queen_board.black_queens |= new_square;
-                    queen_board.redo_occupied();
-                    queen_board.white_to_play = true    ;
-                    res.push(queen_board);
-                    let mut rook_board = new_board.clone();
-                    rook_board.black_rooks |= new_square;
-                    rook_board.redo_occupied();
-                    rook_board.white_to_play = true;
-                    res.push(rook_board);
-                    let mut knight_board = new_board.clone();
-                    knight_board.black_knights |= new_square;
-                    knight_board.redo_occupied();
-                    knight_board.white_to_play = true;
-                    res.push(knight_board);
-                    let mut bishop_board = new_board.clone();
-                    bishop_board.black_bishops |= new_square;
-                    bishop_board.redo_occupied();
-                    bishop_board.white_to_play = true;
-                    res.push(bishop_board);
-                }
-                else {
-                    new_board.white_pawns |= new_square;
-                    new_board.redo_occupied();
-                    new_board.white_to_play = false;
-                    res.push(new_board);
-                } 
+                new_board.black_pawns ^= piece_mask | new_square;
+                new_board.redo_occupied();
+                new_board.white_to_play = true;
+                res.push((new_board, 6));
             }
         }
 
@@ -305,10 +309,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_pawns ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 6));
             }
         }
 
@@ -321,10 +325,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_pawns ^= piece_mask | new_square;
-                new_board.capture_white(new_square);
+                let score = new_board.capture_white(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 6));
             }
         }
 
@@ -337,10 +341,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_pawns ^= piece_mask | new_square;
-                new_board.capture_white(north_one(new_square));
+                let score = new_board.capture_white(north_one(new_square));
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 6));
             }
         }
 
@@ -353,37 +357,76 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.black_pawns ^= piece_mask | new_square;
-                new_board.capture_white(north_one(new_square));
+                let score = new_board.capture_white(north_one(new_square));
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
-                res.push(new_board);
+                res.push((new_board, score + 6));
             }
         }
 
         //King Moves
         let king_square = self.black_kings.trailing_zeros() as usize;
-        let moves = KING_MOVES[king_square] & !self.under_attack_by_white() & self.white_or_empty();
+        let under_attack = self.under_attack_by_white();
+        let moves = KING_MOVES[king_square] & !under_attack & self.white_or_empty();
         for m in BitBoardIter(moves) {
             let new_square = (1 as u64) << m;
             let mut new_board = self.clone();
             new_board.en_passant = 0;
             new_board.black_kings = new_square;
-            new_board.capture_white(new_square);
+            let score = new_board.capture_white(new_square);
             new_board.redo_occupied();
             new_board.white_to_play = true;
-            res.push(new_board);
+            new_board.castle &= !0xff00000000000000;
+            res.push((new_board, score));
+        }
+
+        //Castleing
+        if (self.castle & 0x9000000000000000 == 0x9000000000000000) && under_attack & 0x7000000000000000 == 0 {
+            let mut new_board = self.clone();
+            new_board.black_rooks ^= 0xa000000000000000;
+            new_board.black_kings ^= 0x5000000000000000;
+            new_board.white_to_play = true;
+            new_board.redo_occupied();
+            res.push((new_board, 0));
+        }
+        if (self.castle & 0x1100000000000000 == 0x1100000000000000) && under_attack & 0x1c00000000000000 == 0 {
+            let mut new_board = self.clone();
+            new_board.black_rooks ^= 0x900000000000000;
+            new_board.black_kings ^= 0x1400000000000000;
+            new_board.white_to_play = true;
+            new_board.redo_occupied();
+            res.push((new_board, 0));
         }
 
         res
     }
 
     #[inline]
-    pub fn capture_black(&mut self, mask: BitBoard) {
-        self.black_queens &= !mask;
-        self.black_rooks &= !mask;
-        self.black_bishops &= !mask;
-        self.black_knights &= !mask;
-        self.black_pawns &= !mask;
+    pub fn capture_black(&mut self, mask: BitBoard) -> i32 {
+        self.castle &= !mask;
+        if mask & self.occupied != 0 {
+            if mask & self.black_pawns != 0 {
+                self.black_pawns &= !mask;
+                return 100;
+            }
+            if mask & self.black_knights != 0 {
+                self.black_knights &= !mask;
+                return 200;
+            }
+            if mask & self.black_bishops != 0 {
+                self.black_bishops &= !mask;
+                return 300;
+            }
+            if mask & self.black_rooks != 0 {
+                self.black_rooks &= !mask;
+                return 400;
+            }
+            if mask & self.black_queens != 0 {
+                self.black_queens &= !mask;
+                return 500;
+            }
+        }
+        0
     }
 }
 
@@ -460,8 +503,8 @@ impl Board {
     }
 
     #[inline]
-    pub fn white_moves(&self) -> Vec<Board> {
-        let mut res = Vec::with_capacity(40);
+    pub fn white_moves(&self) -> Vec<(Board, i32)> {
+        let mut res: Vec<(Board, i32)> = Vec::with_capacity(40);
         let checkmask = self.white_checkmask();
         let pinmask_d = self.white_pinmask_d();
         let pinmask_hv = self.white_pinmask_hv();
@@ -475,10 +518,11 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_rooks ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                new_board.castle &= ! piece_mask;
+                res.push((new_board, score + 2));
             }
         }
         //Pinned rooks
@@ -491,10 +535,11 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_rooks ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                new_board.castle &= ! piece_mask;
+                res.push((new_board, score + 2));
             }
         }
 
@@ -507,10 +552,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_bishops ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 3));
             }
         }
         //Pinned Bishops
@@ -523,10 +568,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_bishops ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 3));
             }
         }
 
@@ -541,10 +586,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_queens ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 1));
             }
         }
         //Pinned Queens
@@ -558,10 +603,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_queens ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 1));
             }
             //hv moves
             let moves =
@@ -572,10 +617,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_queens ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 1));
             }
         }
 
@@ -588,10 +633,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_knights ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 4));
             }
         }
 
@@ -612,28 +657,28 @@ impl Board {
                     queen_board.white_queens |= new_square;
                     queen_board.redo_occupied();
                     queen_board.white_to_play = false;
-                    res.push(queen_board);
+                    res.push((queen_board, 1000));
                     let mut rook_board = new_board.clone();
                     rook_board.white_rooks |= new_square;
                     rook_board.redo_occupied();
                     rook_board.white_to_play = false;
-                    res.push(rook_board);
+                    res.push((rook_board, 900));
                     let mut knight_board = new_board.clone();
                     knight_board.white_knights |= new_square;
                     knight_board.redo_occupied();
                     knight_board.white_to_play = false;
-                    res.push(knight_board);
+                    res.push((knight_board, 700));
                     let mut bishop_board = new_board.clone();
                     bishop_board.white_bishops |= new_square;
                     bishop_board.redo_occupied();
                     bishop_board.white_to_play = false;
-                    res.push(bishop_board);
+                    res.push((bishop_board, 800));
                 }
                 else {
                     new_board.white_pawns |= new_square;
                     new_board.redo_occupied();
                     new_board.white_to_play = false;
-                    res.push(new_board);
+                    res.push((new_board, 5));
                 } 
             }
         }
@@ -652,7 +697,7 @@ impl Board {
                 new_board.white_pawns ^= piece_mask | new_square;
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, 5));
             }
         }
 
@@ -665,10 +710,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_pawns ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 5));
             }
         }
 
@@ -681,10 +726,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_pawns ^= piece_mask | new_square;
-                new_board.capture_black(new_square);
+                let score = new_board.capture_black(new_square);
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 5));
             }
         }
 
@@ -697,10 +742,10 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_pawns ^= piece_mask | new_square;
-                new_board.capture_black(south_one(new_square));
+                let score = new_board.capture_black(south_one(new_square));
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 5));
             }
         }
 
@@ -713,24 +758,44 @@ impl Board {
                 let mut new_board = self.clone();
                 new_board.en_passant = 0;
                 new_board.white_pawns ^= piece_mask | new_square;
-                new_board.capture_black(south_one(new_square));
+                let score = new_board.capture_black(south_one(new_square));
                 new_board.redo_occupied();
                 new_board.white_to_play = false;
-                res.push(new_board);
+                res.push((new_board, score + 5));
             }
         }
 
         //King Moves
         let king_square = self.white_kings.trailing_zeros() as usize;
-        let moves = KING_MOVES[king_square] & !self.under_attack_by_black() & self.black_or_empty();
+        let under_attack = self.under_attack_by_black();
+        let moves = KING_MOVES[king_square] & !under_attack & self.black_or_empty();
         for m in BitBoardIter(moves) {
             let new_square = (1 as u64) << m;
             let mut new_board = self.clone();
             new_board.white_kings = new_square;
-            new_board.capture_black(new_square);
+            let score = new_board.capture_black(new_square);
             new_board.redo_occupied();
             new_board.white_to_play = false;
-            res.push(new_board);
+            new_board.castle &= !0xff;
+            res.push((new_board, score));
+        }
+
+        //Castleing
+        if (self.castle & 0x90 == 0x90) && under_attack & 0x70 == 0 {
+            let mut new_board = self.clone();
+            new_board.white_rooks ^= 0xa0;
+            new_board.white_kings ^= 0x50;
+            new_board.white_to_play = false;
+            new_board.redo_occupied();
+            res.push((new_board, 0));
+        }
+        if (self.castle & 0x11 == 0x11) && under_attack & 0x1c == 0 {
+            let mut new_board = self.clone();
+            new_board.white_rooks ^= 0x9;
+            new_board.white_kings ^= 0x14;
+            new_board.white_to_play = false;
+            new_board.redo_occupied();
+            res.push((new_board, 0));
         }
 
         res
@@ -761,12 +826,31 @@ impl Board {
     }
 
     #[inline]
-    pub fn capture_white(&mut self, mask: BitBoard) {
-        self.white_queens &= !mask;
-        self.white_rooks &= !mask;
-        self.white_bishops &= !mask;
-        self.white_knights &= !mask;
-        self.white_pawns &= !mask;
+    pub fn capture_white(&mut self, mask: BitBoard) -> i32 {
+        self.castle &= !mask;
+        if mask & self.occupied != 0 {
+            if mask & self.white_pawns != 0 {
+                self.white_pawns &= !mask;
+                return 100;
+            }
+            if mask & self.white_knights != 0 {
+                self.white_knights &= !mask;
+                return 200;
+            }
+            if mask & self.white_bishops != 0 {
+                self.white_bishops &= !mask;
+                return 300;
+            }
+            if mask & self.white_rooks != 0 {
+                self.white_rooks &= !mask;
+                return 400;
+            }
+            if mask & self.white_queens != 0 {
+                self.white_queens &= !mask;
+                return 500;
+            }
+        }
+        0
     }
 }
 
