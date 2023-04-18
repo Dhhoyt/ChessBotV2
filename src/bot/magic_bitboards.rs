@@ -2,6 +2,31 @@ use super::pseudomoves;
 use super::pseudomoves::rook_moves;
 use super::BitBoard;
 
+const ROOK_LOOKUP: [[BitBoard; 16384]; 64] = {
+    let mut res: [[BitBoard; 16384]; 64] = [[0; 16384]; 64];
+    let mut i: i32 = 0;
+    while i < 64 {
+        res[i as usize] = single_rook_lookup(i);
+        i += 1;
+    }
+    res
+};
+
+const fn single_rook_lookup(square: i32) -> [BitBoard; 16384] {
+    let res: [BitBoard; 16384] = [0; 16384];
+    let mut i = 0;
+    let mut squares_bitboard: BitBoard = rook_moves(i, !0);
+    let mut squares = [0; 14];
+    let mut count = 0;
+    while squares_bitboard != 0 {
+        let res = squares_bitboard.trailing_zeros() as usize;
+        squares_bitboard &= !(1 << squares_bitboard.trailing_zeros());
+        squares[count as usize] = res;
+        count += 1;
+    }
+    res
+}
+
 const ROOK_SEED: [BitBoard; 64] = [
     0x0050020428000230,
     0x23000C80400004A0,
@@ -270,30 +295,4 @@ const BISHOP_XRAY_SEED: [BitBoard; 64] = [
     0x1008020080100401,
 ];
 
-const ROOK_LOOKUP: [[BitBoard; 16384]; 64] = {
-    let mut res: [[BitBoard; 16384]; 64] = [[0; 16384]; 64];
-    let mut i: i32 = 0;
-    while i < 64 {
-        res[i as usize] = single_rook_lookup(i);
-        i += 1;
-    }
-    res
-};
 
-const fn single_rook_lookup(square: i32) -> [BitBoard; 16384] {
-    let res: [BitBoard; 16384] = [0; 16384];
-    let mut i = 0;
-    let mut squares_bitboard: BitBoard = rook_moves(i, !0);
-    let mut squares = [0; 14];
-    let mut count = 0;
-    while squares_bitboard != 0 {
-        let res = squares_bitboard.trailing_zeros() as usize;
-        squares_bitboard &= !(1 << squares_bitboard.trailing_zeros());
-        squares[count as usize] = res;
-        count += 1;
-    }
-    while i < 16384 {
-        let blockers = i += 1;
-    }
-    res
-}

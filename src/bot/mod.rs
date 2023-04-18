@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use self::{move_generation::*, pseudomoves::*, utils::*};
+use self::{move_generation::*, pseudomoves::*, utils::*, opening::OpeningBook};
 
 mod magic_bitboards;
 mod move_generation;
@@ -259,39 +259,21 @@ impl Board {
         total
     }
 
-    pub fn find_move_interatively(
-        self,
-        depth: usize,
-        trans_table: &mut HashMap<Board, (usize, f32, Board)>,
-    ) -> (Board, f32) {
-        let mut best = (Board::default(), 0.0);
-
-        for i in 1..(depth + 1) {
-            if self.white_to_play {
-                best = Board::alpha_beta(
-                    self,
-                    i,
-                    -CHECKMATE_VALUE - 2.,
-                    CHECKMATE_VALUE + 2.,
-                    true,
-                    trans_table,
-                );
-            } else {
-                best = Board::alpha_beta(
-                    self,
-                    i,
-                    -CHECKMATE_VALUE - 2.,
-                    CHECKMATE_VALUE + 2.,
-                    false,
-                    trans_table,
-                );
-            }
+    pub fn find_move(&self, depth: usize, trans_table: &mut HashMap<Board, (usize, f32, Board)>, opening_book: &OpeningBook) -> (Board, f32) {
+        match opening_book.get_move(self.zobrist()) {
+            Some(book_move) => (self.make_move(book_move), 0.),
+            None => self.start_search(depth, trans_table),
         }
+    } 
 
-        best
+    pub fn iterative_search(&self, depth: usize, trans_table: &mut HashMap<Board, (usize, f32, Board)>) -> (Board, f32) {
+        for i in 1..depth {
+            self.start_search(depth, trans_table);
+        }
+        self.start_search(depth, trans_table)
     }
 
-    pub fn find_move(
+    pub fn start_search(
         self,
         depth: usize,
         trans_table: &mut HashMap<Board, (usize, f32, Board)>,
@@ -326,9 +308,7 @@ impl Board {
         trans_table: &mut HashMap<Board, (usize, f32, Board)>,
     ) -> (Board, f32) {
         //println!("{}", board.to_fen());
-        if depth == 0 {
-            return (board, board.hueristic());
-        }
+        
         let lookup = trans_table.get(&board);
         match lookup {
             None => (),
@@ -337,6 +317,9 @@ impl Board {
                     return (result.2, result.1);
                 }
             }
+        }
+        if depth == 0 {
+            return (board, board.hueristic());
         }
         let mut moves = if white {
             board.white_moves()
@@ -490,7 +473,7 @@ impl std::hash::Hash for Board {
     where
         H: std::hash::Hasher,
     {
-        state.write_u64(self.occupied ^ self.white_to_play as u64);
+        state.write_u64(self.occupied);
         state.finish();
     }
 }
