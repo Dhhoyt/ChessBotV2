@@ -6,6 +6,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use crate::Piece;
+
 use self::{move_generation::*, pseudomoves::*, utils::*, opening::OpeningBook};
 
 mod magic_bitboards;
@@ -265,6 +267,7 @@ impl Board {
         Ok(res)
     }
 
+    #[inline]
     pub fn hueristic(&self) -> f32 {
         let mut total: f32 = 0.;
         total +=
@@ -306,6 +309,50 @@ impl Board {
             }
         }
         0
+    }
+
+    pub fn piece_vector(&self) -> Vec<Piece> {
+        let mut res = vec![Piece::None; 64];
+        for i in BitBoardIter(self.occupied) {
+            let mask = (1 as BitBoard) << i;
+            if mask & self.white_kings != 0 {
+                res[i] = Piece::WhiteKing;
+            } 
+            else if mask & self.black_kings != 0 {
+                res[i] = Piece::BlackKing;
+            }
+            else if mask & self.white_queens != 0 {
+                res[i] = Piece::WhiteQueen;
+            } 
+            else if mask & self.black_queens != 0 {
+                res[i] = Piece::BlackQueen;
+            }
+            else if mask & self.white_rooks != 0 {
+                res[i] = Piece::WhiteRook;
+            } 
+            else if mask & self.black_rooks != 0 {
+                res[i] = Piece::BlackRook;
+            }
+            else if mask & self.white_bishops != 0 {
+                res[i] = Piece::WhiteBishop;
+            } 
+            else if mask & self.black_bishops != 0 {
+                res[i] = Piece::BlackBishop;
+            }
+            else if mask & self.white_knights != 0 {
+                res[i] = Piece::WhiteKnight;
+            } 
+            else if mask & self.black_knights!= 0 {
+                res[i] = Piece::BlackKnight;
+            }
+            else if mask & self.white_pawns != 0 {
+                res[i] = Piece::WhitePawn;
+            } 
+            else if mask & self.black_pawns!= 0 {
+                res[i] = Piece::BlackPawn;
+            }
+        }
+        res
     }
 }
 

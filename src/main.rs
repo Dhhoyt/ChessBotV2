@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use bot::{Board, opening::OpeningBook};
 
 fn main() {
+    gui::start_gui(Board::default());
     bot();
 }
 
@@ -43,4 +44,21 @@ fn get_input() -> String {
         s.pop();
     }
     s
+}
+
+#[derive(Clone, Copy)]
+pub enum Piece {
+    WhitePawn,
+    BlackPawn,
+    WhiteKnight,
+    BlackKnight,
+    WhiteBishop,
+    BlackBishop,
+    WhiteRook,
+    BlackRook,
+    WhiteQueen,
+    BlackQueen,
+    WhiteKing,
+    BlackKing,
+    None,
 }
