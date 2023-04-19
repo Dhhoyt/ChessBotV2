@@ -71,16 +71,22 @@ impl Board {
             board.black_moves()
         };
 
+
+        let len = moves.len();
+        let start_alpha = alpha;
+        let start_beta = beta;
+        let mut value = 0.;
+        let mut best_move: Option<Board> = None;
         if white {
-            let mut value = -CHECKMATE_VALUE - 2.0;
+            value = -CHECKMATE_VALUE - 3.0;
             if moves.len() == 0 {
                 return if board.white_kings & board.under_attack_by_black() != 0 {
-                    (board, -CHECKMATE_VALUE)
+                    (board, -CHECKMATE_VALUE + 1.)
                 } else {
                     (board, 0.0)
                 };
             }
-            let mut best_move: Option<Board> = None;
+            
             for i in OrderedMoves(moves) {
                 let eval = Board::alpha_beta(i, depth - 1, alpha, beta, false, age, trans_table);
                 if eval.1 > value {
@@ -100,45 +106,20 @@ impl Board {
                 value += 1.;
             }
 
-            match trans_table.get_mut(&board) {
-                None => {
-                    if value <= alpha {
-                        trans_table.insert(board, TransEntry {depth: depth, lower_bound: -INFINITY, upper_bound: value, response: best_move.unwrap(), age});
-                    } else if (value > alpha) & (value < beta) {
-                        trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age});
-                    }
-                    else if value >= beta {
-                        trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: INFINITY, response: best_move.unwrap(), age});
-                    }
-                }
-                Some(result) => {
-                    if result.depth <= depth {
-                        if value <= alpha {
-                            *result = TransEntry {depth: depth, lower_bound: -INFINITY, upper_bound: value, response: best_move.unwrap(), age};
-                        } else if (value > alpha) & (value < beta) {
-                            *result = TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age};
-                        }
-                        else if value >= beta {
-                            *result = TransEntry{depth: depth, lower_bound: value, upper_bound: INFINITY, response: best_move.unwrap(), age};
-                        }
-                    }
-                }
-            }
-            return (best_move.expect("No best move found?!?!?!?!?"), value);
         } else {
-            let mut value = CHECKMATE_VALUE + 2.0;
+            value = CHECKMATE_VALUE + 3.0;
             if moves.len() == 0 {
                 return if board.black_kings & board.under_attack_by_white() != 0 {
-                    (board, CHECKMATE_VALUE)
+                    (board, CHECKMATE_VALUE - 1.)
                 } else {
                     (board, 0.0)
                 };
             }
-            let mut best_move: Option<Board> = None;
             for i in OrderedMoves(moves) {
                 let eval = Board::alpha_beta(i, depth - 1, alpha, beta, true, age, trans_table);
                 if eval.1 < value {
                     value = eval.1;
+                    
                     best_move = Some(i);
                 }
 
@@ -154,32 +135,32 @@ impl Board {
             if value > CHECKMATE_THRESHOLD {
                 value -= 1.;
             }
-            match trans_table.get_mut(&board) {
-                None => {
+        }
+        match trans_table.get_mut(&board) {
+            None => {
+                if value <= alpha {
+                    trans_table.insert(board, TransEntry {depth: depth, lower_bound: -CHECKMATE_VALUE, upper_bound: value, response: best_move.unwrap(), age});
+                } else if (value > alpha) & (value < beta) {
+                    trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age});
+                }
+                else if value >= beta {
+                    trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: CHECKMATE_VALUE, response: best_move.unwrap(), age});
+                }
+            }
+            Some(result) => {
+                if result.depth <= depth {
                     if value <= alpha {
-                        trans_table.insert(board, TransEntry {depth: depth, lower_bound: -INFINITY, upper_bound: value, response: best_move.unwrap(), age});
+                        *result = TransEntry {depth: depth, lower_bound: -CHECKMATE_VALUE, upper_bound: value, response: best_move.unwrap(), age};
                     } else if (value > alpha) & (value < beta) {
-                        trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age});
+                        *result = TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age};
                     }
                     else if value >= beta {
-                        trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: INFINITY, response: best_move.unwrap(), age});
-                    }
-                }
-                Some(result) => {
-                    if result.depth <= depth {
-                        if value <= alpha {
-                            *result = TransEntry {depth: depth, lower_bound: -INFINITY, upper_bound: value, response: best_move.unwrap(), age};
-                        } else if (value > alpha) & (value < beta) {
-                            *result = TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age};
-                        }
-                        else if value >= beta {
-                            *result = TransEntry{depth: depth, lower_bound: value, upper_bound: INFINITY, response: best_move.unwrap(), age};
-                        }
+                        *result = TransEntry{depth: depth, lower_bound: value, upper_bound: CHECKMATE_VALUE, response: best_move.unwrap(), age};
                     }
                 }
             }
-            return (best_move.expect("No best move found?!?!?!?!?"), value);
         }
+        return (best_move.unwrap(), value);
     }
 }
 
