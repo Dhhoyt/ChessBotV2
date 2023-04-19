@@ -4,6 +4,9 @@ use super::pseudomoves::*;
 use super::utils::*;
 use super::{BitBoard, Board};
 
+//Abandon all hope ye who enter here
+//This code was written over a long period of time. Its fast (about 50 million moves per second), its repetitive, but it work.
+
 //Black moves here
 impl Board {
     #[inline]
