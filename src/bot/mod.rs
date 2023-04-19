@@ -149,6 +149,27 @@ impl Board {
         if 0x8100000000000081 & self.castle == 0 {
             res.push('-')
         };
+        res.push(' ');
+        let en_passant = self.get_en_passant();
+        match en_passant {
+            0x10000 => res.push_str("a3"),
+            0x20000 => res.push_str("b3"),
+            0x40000 => res.push_str("c3"),
+            0x80000 => res.push_str("d3"),
+            0x100000 => res.push_str("e3"),
+            0x200000 => res.push_str("f3"),
+            0x400000 => res.push_str("g3"),
+            0x800000 => res.push_str("h3"),
+            0x10000000000 => res.push_str("a6"),
+            0x20000000000 => res.push_str("b6"),
+            0x40000000000 => res.push_str("c6"),
+            0x80000000000 => res.push_str("d6"),
+            0x100000000000 => res.push_str("e6"),
+            0x200000000000 => res.push_str("f6"),
+            0x400000000000 => res.push_str("g6"),
+            0x800000000000 => res.push_str("h6"),
+            _ => res.push('-')
+        }
         res
     }
 
@@ -259,24 +280,27 @@ impl Board {
         total
     }
 
-    pub fn find_move(&self, depth: usize, trans_table: &mut HashMap<Board, (usize, f32, Board)>, opening_book: &OpeningBook) -> (Board, f32) {
-        match opening_book.get_move(self.zobrist()) {
+    pub fn find_move(&self, depth: usize, age: usize, trans_table: &mut HashMap<Board, TransEntry>, opening_book: &OpeningBook) -> (Board, f32) {
+        let score = match opening_book.get_move(self.zobrist()) {
             Some(book_move) => (self.make_move(book_move), 0.),
-            None => self.start_search(depth, trans_table),
-        }
+            None => self.iterative_search(depth, age, trans_table),
+        };
+        trans_table.retain(|_, v| (v.age - age) < 4);
+        score
     } 
 
-    pub fn iterative_search(&self, depth: usize, trans_table: &mut HashMap<Board, (usize, f32, Board)>) -> (Board, f32) {
+    pub fn iterative_search(&self, depth: usize, age: usize, trans_table: &mut HashMap<Board, TransEntry>) -> (Board, f32) {
         for i in 1..depth {
-            self.start_search(depth, trans_table);
+            self.start_search(depth, age, trans_table);
         }
-        self.start_search(depth, trans_table)
+        self.start_search(depth, age, trans_table)
     }
 
     pub fn start_search(
         self,
         depth: usize,
-        trans_table: &mut HashMap<Board, (usize, f32, Board)>,
+        age: usize,
+        trans_table: &mut HashMap<Board, TransEntry>,
     ) -> (Board, f32) {
         if self.white_to_play {
             Board::alpha_beta(
@@ -285,6 +309,7 @@ impl Board {
                 -CHECKMATE_VALUE - 2.,
                 CHECKMATE_VALUE + 2.,
                 true,
+                age,
                 trans_table,
             )
         } else {
@@ -294,6 +319,7 @@ impl Board {
                 -CHECKMATE_VALUE - 2.,
                 CHECKMATE_VALUE + 2.,
                 false,
+                age,
                 trans_table,
             )
         }
@@ -305,7 +331,8 @@ impl Board {
         mut alpha: f32,
         mut beta: f32,
         white: bool,
-        trans_table: &mut HashMap<Board, (usize, f32, Board)>,
+        age: usize,
+        trans_table: &mut HashMap<Board, TransEntry>,
     ) -> (Board, f32) {
         //println!("{}", board.to_fen());
         
@@ -313,8 +340,11 @@ impl Board {
         match lookup {
             None => (),
             Some(result) => {
-                if result.0 >= depth {
-                    return (result.2, result.1);
+                if result.depth >= depth {
+                    if result.lower_bound >= beta { return (result.response, result.lower_bound) }
+                    if result.upper_bound <= alpha { return (result.response, result.lower_bound) };
+                    alpha = f32::max(alpha, result.lower_bound);
+                    beta = f32::min(beta, result.upper_bound);
                 }
             }
         }
@@ -338,16 +368,16 @@ impl Board {
             }
             let mut best_move: Option<Board> = None;
             for i in OrderedMoves(moves) {
-                let eval = Board::alpha_beta(i, depth - 1, alpha, beta, false, trans_table);
+                let eval = Board::alpha_beta(i, depth - 1, alpha, beta, false, age, trans_table);
                 if eval.1 > value {
                     value = eval.1;
                     best_move = Some(i);
                 }
-                alpha = f32::max(alpha, value);
-
+                
                 if value >= beta {
                     break;
                 }
+                alpha = f32::max(alpha, value);
             }
             if value > CHECKMATE_THRESHOLD {
                 value -= 1.;
@@ -358,11 +388,25 @@ impl Board {
 
             match trans_table.get_mut(&board) {
                 None => {
-                    trans_table.insert(board, (depth, value, best_move.unwrap()));
+                    if value <= alpha {
+                        trans_table.insert(board, TransEntry {depth: depth, lower_bound: -INFINITY, upper_bound: value, response: best_move.unwrap(), age});
+                    } else if (value > alpha) & (value < beta) {
+                        trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age});
+                    }
+                    else if value >= beta {
+                        trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: INFINITY, response: best_move.unwrap(), age});
+                    }
                 }
                 Some(result) => {
-                    if result.0 < depth {
-                        *result = (depth, value, best_move.unwrap());
+                    if result.depth <= depth {
+                        if value <= alpha {
+                            *result = TransEntry {depth: depth, lower_bound: -INFINITY, upper_bound: value, response: best_move.unwrap(), age};
+                        } else if (value > alpha) & (value < beta) {
+                            *result = TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age};
+                        }
+                        else if value >= beta {
+                            *result = TransEntry{depth: depth, lower_bound: value, upper_bound: INFINITY, response: best_move.unwrap(), age};
+                        }
                     }
                 }
             }
@@ -378,16 +422,17 @@ impl Board {
             }
             let mut best_move: Option<Board> = None;
             for i in OrderedMoves(moves) {
-                let eval = Board::alpha_beta(i, depth - 1, alpha, beta, true, trans_table);
+                let eval = Board::alpha_beta(i, depth - 1, alpha, beta, true, age, trans_table);
                 if eval.1 < value {
                     value = eval.1;
                     best_move = Some(i);
                 }
 
-                beta = f32::min(beta, value);
+               
                 if value <= alpha {
                     break;
                 }
+                beta = f32::min(beta, value);
             }
             if value < -CHECKMATE_THRESHOLD {
                 value += 1.;
@@ -397,11 +442,25 @@ impl Board {
             }
             match trans_table.get_mut(&board) {
                 None => {
-                    trans_table.insert(board, (depth, value, best_move.unwrap()));
+                    if value <= alpha {
+                        trans_table.insert(board, TransEntry {depth: depth, lower_bound: -INFINITY, upper_bound: value, response: best_move.unwrap(), age});
+                    } else if (value > alpha) & (value < beta) {
+                        trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age});
+                    }
+                    else if value >= beta {
+                        trans_table.insert(board, TransEntry{depth: depth, lower_bound: value, upper_bound: INFINITY, response: best_move.unwrap(), age});
+                    }
                 }
                 Some(result) => {
-                    if result.0 < depth {
-                        *result = (depth, value, best_move.unwrap());
+                    if result.depth <= depth {
+                        if value <= alpha {
+                            *result = TransEntry {depth: depth, lower_bound: -INFINITY, upper_bound: value, response: best_move.unwrap(), age};
+                        } else if (value > alpha) & (value < beta) {
+                            *result = TransEntry{depth: depth, lower_bound: value, upper_bound: value, response: best_move.unwrap(), age};
+                        }
+                        else if value >= beta {
+                            *result = TransEntry{depth: depth, lower_bound: value, upper_bound: INFINITY, response: best_move.unwrap(), age};
+                        }
                     }
                 }
             }
@@ -457,6 +516,14 @@ impl Default for Board {
     }
 }
 
+pub struct TransEntry {
+    depth: usize,
+    lower_bound: f32,
+    upper_bound: f32,
+    response: Board,
+    age: usize,
+}
+
 #[derive(Debug)]
 pub enum FENError {
     IncorrrectNumberOfTokens,
@@ -501,4 +568,10 @@ impl Iterator for OrderedMoves {
         best.1 = -1;
         Some(best.0)
     }
+}
+
+pub enum ScoreType {
+    Perfect,
+    Alpha,
+    Beta
 }

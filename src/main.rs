@@ -2,32 +2,81 @@
 mod bot;
 
 use std::collections::HashMap;
-
 use bot::{Board, opening::OpeningBook};
 
+use sdl2::pixels::Color;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::rect::Rect;
+use std::time::Duration;
+use sdl2::image::{self, LoadTexture, InitFlag};
+
+const SQUARE_SIZE: u32 = 64;
+const PADDING: u32 = 32;
+
+
 fn main() {
-    let starting = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap().zobrist();
-    let book = OpeningBook::new("books/codekiddy.bin");
-    println!("{}", book.moves.get(&starting).unwrap().len());
-    let book_move = book.get_move(starting).unwrap();
-    println!("({}, {})", book_move.from_square, book_move.to_square);
     bot();
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+
+    let window = video_subsystem.window("Chess Bot", (SQUARE_SIZE * 8) + (PADDING * 2), (SQUARE_SIZE * 8) + (PADDING * 2)).position_centered().build().unwrap();
+
+    let mut canvas = window.into_canvas().build().unwrap();
+
+    canvas.set_draw_color(Color::RGB(0,255,255));
+
+    canvas.clear();
+    canvas.present();
+
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    'running: loop {
+        canvas.set_draw_color(Color::RGB(50,50,64 ));
+        canvas.clear();
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    break 'running
+                },
+                _ => {}
+            }
+        }
+        
+        //Draw squares 
+        for file in 0..8 {
+            for rank in 0..8 {
+                let x_offset = (SQUARE_SIZE * file + PADDING) as i32;
+                let y_offset = (SQUARE_SIZE * rank + PADDING) as i32;
+                if (file + rank) % 2 == 0 {
+                    canvas.set_draw_color(Color::RGB(255,255,220 ));
+                } else {
+                    canvas.set_draw_color(Color::RGB(128,255,128 ));
+                }
+                canvas.fill_rect(Rect::new(x_offset, y_offset, SQUARE_SIZE, SQUARE_SIZE));
+            }
+        }
+
+        canvas.present();
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32/60));
+    }
+
 }
 
 fn bot() {
     let mut trans_table = HashMap::new();
     let mut board = Board::default();
     let mut score: f32 = 0.0;
+    let mut age = 0;
 
-    let book = OpeningBook::new("books/codekiddy.bin");
+    let book = OpeningBook::new(include_bytes!("books/codekiddy.bin").to_vec());
 
-    (board, score) = board.find_move(6, &mut trans_table, &book);
+    (board, score) = board.find_move(7, age, &mut trans_table, &book);
 
     println!("{} \n {}", board.to_fen(), score);
     loop {
         let input = get_input();
         let board = Board::from_fen(&input).unwrap();
-        let (board, score) = board.find_move(6, &mut trans_table, &book);
+        let (board, score) = board.find_move(7, age, &mut trans_table, &book);
         println!("{} \n {}", board.to_fen(), score);
     }
 }

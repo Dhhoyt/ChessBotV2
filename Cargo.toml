@@ -11,6 +11,7 @@ debug = true
 [dependencies]
 rand = "0.8.5"
 
-[target.x86_64-unknown-linux-gnu]
-linker = "/usr/bin/clang"
-rustflags = ["-Clink-arg=-fuse-ld=lld", "-Clink-arg=-Wl,--no-rosegment"]
+[dependencies.sdl2]
+version = "0.35.2"
+default-features = false
+features = ["image"]

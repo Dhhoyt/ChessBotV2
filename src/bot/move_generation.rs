@@ -272,7 +272,7 @@ impl Board {
                     bishop_board.white_to_play = true;
                     res.push((bishop_board, 800));
                 } else {
-                    new_board.white_pawns |= new_square;
+                    new_board.black_pawns |= new_square;
                     new_board.redo_occupied();
                     new_board.white_to_play = true;
                     res.push((new_board, 5));

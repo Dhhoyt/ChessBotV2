@@ -9,8 +9,7 @@ pub struct OpeningBook {
 }
 
 impl OpeningBook {
-    pub fn new(path: &str) -> Self {
-        let bytes = fs::read(path).unwrap();
+    pub fn new(bytes: Vec<u8>) -> Self {
         let mut moves: HashMap<u64, Vec<Move>> = HashMap::new();
         for i in bytes.chunks(16) {
             let key = u64::from_be_bytes(i[0..8].try_into().unwrap());
