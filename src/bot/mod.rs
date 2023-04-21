@@ -8,13 +8,16 @@ use std::{
 
 use crate::Piece;
 
-use self::{move_generation::*, pseudomoves::*, utils::*, opening::OpeningBook};
+use self::{move_generation::*, opening::OpeningBook, pseudomoves::*, utils::*};
 
+pub mod board_move;
+pub mod single_moves;
+//Goal is to make this private
 mod magic_bitboards;
 mod move_generation;
-mod search;
 pub mod opening;
 mod pseudomoves;
+mod search;
 mod utils;
 mod zobrist;
 
@@ -171,7 +174,7 @@ impl Board {
             0x200000000000 => res.push_str("f6"),
             0x400000000000 => res.push_str("g6"),
             0x800000000000 => res.push_str("h6"),
-            _ => res.push('-')
+            _ => res.push('-'),
         }
         res
     }
@@ -284,12 +287,18 @@ impl Board {
         total
     }
 
-    pub fn find_move(&self, depth: usize, age: usize, trans_table: &mut HashMap<Board, TransEntry>, opening_book: &OpeningBook) -> (Board, f32) {
+    pub fn find_move(
+        &self,
+        depth: usize,
+        age: usize,
+        trans_table: &mut HashMap<Board, TransEntry>,
+        opening_book: &OpeningBook,
+    ) -> (Board, f32) {
         let score = match opening_book.get_move(self.zobrist()) {
             Some(book_move) => (self.make_move(book_move), 0.),
             None => self.iterative_search(depth, age, trans_table),
         };
-        trans_table.retain(|_, v| (v.age - age) < 4);
+        trans_table.retain(|_, v| (v.age - age) < 2);
         score
     }
 
@@ -317,38 +326,27 @@ impl Board {
             let mask = (1 as BitBoard) << i;
             if mask & self.white_kings != 0 {
                 res[i] = Piece::WhiteKing;
-            } 
-            else if mask & self.black_kings != 0 {
+            } else if mask & self.black_kings != 0 {
                 res[i] = Piece::BlackKing;
-            }
-            else if mask & self.white_queens != 0 {
+            } else if mask & self.white_queens != 0 {
                 res[i] = Piece::WhiteQueen;
-            } 
-            else if mask & self.black_queens != 0 {
+            } else if mask & self.black_queens != 0 {
                 res[i] = Piece::BlackQueen;
-            }
-            else if mask & self.white_rooks != 0 {
+            } else if mask & self.white_rooks != 0 {
                 res[i] = Piece::WhiteRook;
-            } 
-            else if mask & self.black_rooks != 0 {
+            } else if mask & self.black_rooks != 0 {
                 res[i] = Piece::BlackRook;
-            }
-            else if mask & self.white_bishops != 0 {
+            } else if mask & self.white_bishops != 0 {
                 res[i] = Piece::WhiteBishop;
-            } 
-            else if mask & self.black_bishops != 0 {
+            } else if mask & self.black_bishops != 0 {
                 res[i] = Piece::BlackBishop;
-            }
-            else if mask & self.white_knights != 0 {
+            } else if mask & self.white_knights != 0 {
                 res[i] = Piece::WhiteKnight;
-            } 
-            else if mask & self.black_knights!= 0 {
+            } else if mask & self.black_knights != 0 {
                 res[i] = Piece::BlackKnight;
-            }
-            else if mask & self.white_pawns != 0 {
+            } else if mask & self.white_pawns != 0 {
                 res[i] = Piece::WhitePawn;
-            } 
-            else if mask & self.black_pawns!= 0 {
+            } else if mask & self.black_pawns != 0 {
                 res[i] = Piece::BlackPawn;
             }
         }

@@ -2,8 +2,8 @@
 mod bot;
 mod gui;
 
+use bot::{opening::OpeningBook, Board};
 use std::collections::HashMap;
-use bot::{Board, opening::OpeningBook};
 
 fn main() {
     gui::start_gui(Board::default());

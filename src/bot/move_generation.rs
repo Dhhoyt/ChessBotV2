@@ -10,7 +10,7 @@ use super::{BitBoard, Board};
 //Black moves here
 impl Board {
     #[inline]
-    fn black_checkmask(&self) -> BitBoard {
+    pub fn black_checkmask(&self) -> BitBoard {
         let king_square = self.black_kings.trailing_zeros() as usize;
         let mut checkmask: BitBoard = 0xFFFFFFFFFFFFFFFF;
         for i in BitBoardIter(self.white_queens) {
@@ -294,7 +294,6 @@ impl Board {
                 if i - m == 16 {
                     new_board.en_passant |= north_one(new_square);
                 }
-                new_board.black_pawns ^= piece_mask;
                 new_board.black_pawns ^= piece_mask | new_square;
                 new_board.redo_occupied();
                 new_board.white_to_play = true;
@@ -439,7 +438,7 @@ impl Board {
 //White moves here
 impl Board {
     #[inline]
-    fn white_checkmask(&self) -> BitBoard {
+    pub fn white_checkmask(&self) -> BitBoard {
         let king_square = self.white_kings.trailing_zeros() as usize;
         let mut checkmask: BitBoard = 0xFFFFFFFFFFFFFFFF;
         for i in BitBoardIter(self.black_queens) {

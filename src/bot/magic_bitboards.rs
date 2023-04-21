@@ -294,5 +294,3 @@ const BISHOP_XRAY_SEED: [BitBoard; 64] = [
     0x006F020000401002,
     0x1008020080100401,
 ];
-
-
